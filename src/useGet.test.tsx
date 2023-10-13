@@ -1580,6 +1580,44 @@ describe("useGet hook", () => {
       });
       expect(result.current.data).toEqual({ id: 1 });
     });
+
+    it("should wait for loading for multiple calls", async () => {
+      nock("https://my-awesome-api.fake")
+        .get("/plop/one")
+        .delay(1000)
+        .reply(200, { id: 1 });
+      nock("https://my-awesome-api.fake")
+        .get("/plop/two")
+        .delay(1000)
+        .reply(200, { id: 1 });
+
+      const wrapper: React.FC = ({ children }) => (
+        <RestfulProvider base="https://my-awesome-api.fake">{children}</RestfulProvider>
+      );
+      const { result } = renderHook(
+        () =>
+          useGet<{ id: number }, {}, {}, { id: string }>(({ id }) => `plop/${id}`, {
+            pathParams: { id: "two" },
+            lazy: true,
+          }),
+        {
+          wrapper,
+        },
+      );
+      result.current.refetch({ pathParams: { id: "one" } });
+      await new Promise(_ => setTimeout(_, 700));
+      expect(result.current).toMatchObject({
+        error: null,
+        loading: true,
+      });
+      result.current.refetch({ pathParams: { id: "two" } });
+      await new Promise(_ => setTimeout(_, 500));
+
+      expect(result.current).toMatchObject({
+        error: null,
+        loading: true,
+      });
+    });
   });
 
   describe("with mock", () => {
