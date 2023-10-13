@@ -548,7 +548,6 @@ describe("useMutate", () => {
       expect(res).toEqual({ id: 1 });
     });
   });
-
   describe("POST", () => {
     it("should set loading to true after a call", async () => {
       nock("https://my-awesome-api.fake")
@@ -869,6 +868,37 @@ describe("useMutate", () => {
       const { result } = renderHook(() => useMutate("POST", ""), { wrapper });
       await result.current.mutate({ foo: "bar" });
       expect(resolve).toBeCalled();
+    });
+
+    it("should wait for loading for multiple calls", async () => {
+      nock("https://my-awesome-api.fake")
+        .post("/plop")
+        .delay(1000)
+        .reply(200, { id: 1 });
+      nock("https://my-awesome-api.fake")
+        .post("/plop")
+        .delay(1000)
+        .reply(200, { id: 2 });
+
+      const wrapper: React.FC = ({ children }) => (
+        <RestfulProvider base="https://my-awesome-api.fake">{children}</RestfulProvider>
+      );
+      const { result } = renderHook(() => useMutate<{ id: number }, unknown, {}, {}>("POST", "plop"), {
+        wrapper,
+      });
+
+      result.current.mutate({ id: 1 });
+      await new Promise(_ => setTimeout(_, 700));
+      expect(result.current).toMatchObject({
+        error: null,
+        loading: true,
+      });
+      result.current.mutate({ id: 2 });
+      await new Promise(_ => setTimeout(_, 500));
+      expect(result.current).toMatchObject({
+        error: null,
+        loading: true,
+      });
     });
   });
 
